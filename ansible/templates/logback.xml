@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%date{MM/dd HH:mm:ss.SSS} %-5level[%.15thread] %logger{1} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGFILE:-{{ INSIDE_LOG_DIR }}/ssp-dedup.log }</file>
+        <!-- <file>${LOGFILE:-/opt/apps/logs/ssp-dedup.log}</file> -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>{{ INSIDE_LOG_DIR }}/ssp-dedup.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
+            <maxHistory>170</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%date{MM/dd HH:mm:ss:SSS} %-5level[%thread] %logger{1} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="{{ LOG_LEVEL }}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ROLLING_FILE"/>
+    </root>
+</configuration>

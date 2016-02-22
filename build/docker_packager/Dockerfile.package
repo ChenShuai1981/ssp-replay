@@ -1,0 +1,10 @@
+FROM 192.168.101.29:5000/vpon/alpine-java:serverjre-7
+
+# Add fat jar and config files to image
+ADD tmp/*.jar /opt/apps/
+ADD tmp/conf /opt/apps/conf
+
+# Set working directory
+WORKDIR /opt/apps/
+
+
