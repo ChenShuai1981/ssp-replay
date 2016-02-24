@@ -22,9 +22,9 @@ application.conf:
     KAFKA_TOPIC_DEDUP_FLATTEN: 'ssp-flatten-events'
     KAFKA_BROKERS_DEDUP_CONSUMER: 'localhost:9092'
     KAFKA_TOPIC_DEDUP_CONSUMER: 'ssp-edge-events'
-    BATCH_SIZE: '1'
+    BATCH_SIZE: '10'
     DEDUP_KEY_TTL: '600s'
-    
+
 logback.xml:
     INSIDE_LOG_DIR: '/Users/chenshuai/logs'
     LOG_LEVEL: 'DEBUG'
