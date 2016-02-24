@@ -49,6 +49,8 @@ object PartitionMetricsProtocol {
 
   case object Resume
 
+  case class Convert(time: Double)
+
   /**
    * FlattenFailures
    */
@@ -88,6 +90,16 @@ object PartitionMetricsProtocol {
   case class UnsupportedSellerRevenueShareType(offset: Long, key: String)
 
   case class UnsupportedDealType(offset: Long, key: String)
+
+  /**
+   * ConvertFailures
+   */
+
+  case class UnknownImpressionType(offset: Long, key: String)
+
+  case class UnknownDealType(offset: Long, key: String)
+
+  case class BlankImpressionTypeInImpressionEvent(offset: Long, key: String)
 
 }
 
