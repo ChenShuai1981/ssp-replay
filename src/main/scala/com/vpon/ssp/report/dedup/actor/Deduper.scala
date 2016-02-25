@@ -12,15 +12,13 @@ import kafka.producer.KeyedMessage
 import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.commons.lang3.exception.ExceptionUtils
 
-import com.vpon.ssp.report.common.converter.DruidRecordConverter
-import com.vpon.ssp.report.common.converter.exception.{ConvertFailureType, ConvertFailure}
-import com.vpon.ssp.report.common.couchbase.CBExtension
-import com.vpon.ssp.report.common.kafka.consumer.TopicsConsumer
-import com.vpon.ssp.report.common.kafka.consumer.TopicsConsumer.AbsoluteOffset
-import com.vpon.ssp.report.common.kafka.producer.CustomPartitionProducer
-import com.vpon.ssp.report.common.model.DruidRecord
-import com.vpon.ssp.report.common.util.Retry.NeedRetryException
-import com.vpon.ssp.report.common.util.Retry
+import com.vpon.ssp.report.dedup.couchbase.CBExtension
+import com.vpon.ssp.report.dedup.kafka.consumer.TopicsConsumer
+import com.vpon.ssp.report.dedup.kafka.consumer.TopicsConsumer.AbsoluteOffset
+import com.vpon.ssp.report.dedup.kafka.producer.CustomPartitionProducer
+import com.vpon.ssp.report.dedup.model.EventRecord
+import com.vpon.ssp.report.dedup.util.Retry.NeedRetryException
+import com.vpon.ssp.report.dedup.util.Retry
 import com.vpon.ssp.report.dedup.actor.PartitionActorProtocol.{Fulfill, NextJob, PauseWork}
 import com.vpon.ssp.report.dedup.actor.PartitionMetricsProtocol._
 import com.vpon.ssp.report.dedup.config.DedupConfig
@@ -58,12 +56,11 @@ class Deduper(private val system: ActorSystem,
   private val delayedKafkaProducer = new CustomPartitionProducer[String, String](delayedEventsBrokers)
   private val warningKafkaProducer = new CustomPartitionProducer[String, String](warningEventsBrokers)
 
-  private val awsS3Service = new AwsS3Service(
+  private val awsService = new AwsService(
     new AwsConfig(s3BucketName = "ssp-indexing-1",
-      redshiftDataDelimiter = '|',
-      s3DateTimePattern = "yyyy/MM/dd/HH/mm/",
       needCompress = false,
-      needEncrypt = false
+      needEncrypt = false,
+      kinesisStreamName = "S3FileStream"
     )
   )
 
@@ -107,21 +104,21 @@ class Deduper(private val system: ActorSystem,
   def doWork(mmds: List[MessageAndMetadata[String, Array[Byte]]]): Future[Any] = {
     val f = for {
       dedupedMmds <- dedup(mmds)
-      druidRecords <- flattenAndConvert(dedupedMmds)
-      sendResult <- send(druidRecords)
+      eventRecords <- flatten(dedupedMmds)
+      sendResult <- send(eventRecords)
     } yield {
         sendResult match {
           case None => {
             log.debug(s"${partitionActor.path} ==> [STEP 6.6] sent failure. But continue to process next batch messages without blocking")
-            doPostSendActions(mmds, List.empty[DruidRecord])
+            doPostSendActions(mmds, List.empty[EventRecord])
           } // all deduped
           case Some(isSentSuccess) => {
             if (isSentSuccess) {
               log.debug(s"${partitionActor.path} ==> [STEP 6.6] sent success. continue to doPostSendActions.")
-              doPostSendActions(mmds, druidRecords)
+              doPostSendActions(mmds, eventRecords)
             } else {
               log.warning(s"${partitionActor.path} ==> [STEP 6.6] sent failure?? But this branch should not be go through!!")
-              doPostSendActions(mmds, druidRecords)
+              doPostSendActions(mmds, eventRecords)
             }
           }
         }
@@ -187,10 +184,10 @@ class Deduper(private val system: ActorSystem,
     }
   }
 
-  private def flattenAndConvert(dedupedMmds: List[MessageAndMetadata[String, Array[Byte]]]): Future[List[DruidRecord]] = {
+  private def flatten(dedupedMmds: List[MessageAndMetadata[String, Array[Byte]]]): Future[List[EventRecord]] = {
     log.debug(s"${partitionActor.path} ==> [STEP 5.1] start flatten")
     if (!dedupedMmds.isEmpty) {
-      Future.traverse(dedupedMmds){m => flattenAndConvertMessage(m)} map {
+      Future.traverse(dedupedMmds){m => flattenMessage(m)} map {
         k => {
           val t = k.flatten
           log.debug(s"${partitionActor.path} ==> [STEP 5.3] end flatten with result: ${t}")
@@ -203,7 +200,7 @@ class Deduper(private val system: ActorSystem,
     }
   }
 
-  private def flattenAndConvertMessage(mmd: MessageAndMetadata[String, Array[Byte]]): Future[Option[DruidRecord]] = {
+  private def flattenMessage(mmd: MessageAndMetadata[String, Array[Byte]]): Future[Option[EventRecord]] = {
     val offset = mmd.offset
     val key = mmd.key()
     partitionMetrics ! Consume(offset, key)
@@ -214,36 +211,7 @@ class Deduper(private val system: ActorSystem,
         case Right(er) => {
           log.debug(s"${partitionActor.path} ==> [STEP 5.2] flatten success. $er")
           partitionMetrics ! Flatten(System.currentTimeMillis - flattenStartTime)
-          val convertStartTime = System.currentTimeMillis()
-          DruidRecordConverter.convert(er) match {
-            case Right(dr) => {
-              partitionMetrics ! Convert(System.currentTimeMillis - convertStartTime)
-              log.debug(s"${partitionActor.path} ==> [STEP 2.2] convert success. $dr")
-              Some(dr)
-            }
-            case Left(f: ConvertFailure) => f.errorType match {
-              case ConvertFailureType.UnknownError => {
-                partitionMetrics ! UnknownError(offset, key)
-                handleConvertingWarningFailureEvents(f, mmd)
-              }
-              case ConvertFailureType.UnknownImpressionType => {
-                partitionMetrics ! UnknownImpressionType(offset, key)
-                handleConvertingWarningFailureEvents(f, mmd)
-              }
-              case ConvertFailureType.UnknownEventType => {
-                partitionMetrics ! UnknownEventType(offset, key)
-                handleConvertingWarningFailureEvents(f, mmd)
-              }
-              case ConvertFailureType.UnknownDealType => {
-                partitionMetrics ! UnknownDealType(offset, key)
-                handleConvertingWarningFailureEvents(f, mmd)
-              }
-              case ConvertFailureType.BlankImpressionTypeInImpressionEvent => {
-                partitionMetrics ! BlankImpressionTypeInImpressionEvent(offset, key)
-                handleConvertingWarningFailureEvents(f, mmd)
-              }
-            }
-          }
+          Some(er)
         }
         case Left(f: FlattenFailure) => f.errorType match {
           case FlattenFailureType.DelayedEvent => {
@@ -264,14 +232,6 @@ class Deduper(private val system: ActorSystem,
           }
           case FlattenFailureType.ExchangeRateNotFound => {
             partitionMetrics ! ExchangeRateNotFound(offset, key)
-            handleWarningFlattenFailureEvents(f, mmd)
-          }
-          case FlattenFailureType.PublisherSspTaxRateNotFound => {
-            partitionMetrics ! PublisherSspTaxRateNotFound(offset, key)
-            handleWarningFlattenFailureEvents(f, mmd)
-          }
-          case FlattenFailureType.DspSspTaxRateNotFound => {
-            partitionMetrics ! DspSspTaxRateNotFound(offset, key)
             handleWarningFlattenFailureEvents(f, mmd)
           }
           case FlattenFailureType.CouchbaseDeserializationError => {
@@ -337,13 +297,6 @@ class Deduper(private val system: ActorSystem,
     None
   }
 
-  private def handleConvertingWarningFailureEvents(f: ConvertFailure, mmd: MessageAndMetadata[String, Array[Byte]]) = {
-    partitionMetrics ! Warning(f.message)
-    log.warning(s"${partitionActor.path} ==> [STEP 2.2] convert warning failure due to ${f.errorType}. send it to warning topic and continue.")
-    sendWarningMessage(mmd)
-    None
-  }
-
   private def handleErrorFlattenFailureEvents(f: FlattenFailure, mmd: MessageAndMetadata[String, Array[Byte]]) = {
     partitionMetrics ! Error(f.message)
     log.error(s"${partitionActor.path} ==> [STEP 5.2] flatten error failure due to ${f.errorType}. key: ${mmd.key}, offset: ${mmd.offset}, so pause work!!")
@@ -365,13 +318,14 @@ class Deduper(private val system: ActorSystem,
     log.debug(s"sent warning message done")
   }
 
-  private def send(druidRecords: List[DruidRecord]): Future[Option[Boolean]] = {
+  private def send(eventRecords: List[EventRecord]): Future[Option[Boolean]] = {
     log.debug(s"${partitionActor.path} ==> [STEP 6.1] start send")
-    if (!druidRecords.isEmpty) {
+    if (!eventRecords.isEmpty) {
+
       val sendStartTime = System.currentTimeMillis()
-      awsS3Service.putRecords(druidRecords).map(k => {
+      awsService.send(eventRecords, Some(partitionId)).map(k => {
         val sendTime = System.currentTimeMillis() - sendStartTime
-        partitionMetrics ! Send(k, sendTime)
+        partitionMetrics ! Send(sendTime)
         log.debug(s"${partitionActor.path} ==> [STEP 6.5] end send with true result.")
         Some(true)
       })
@@ -381,9 +335,9 @@ class Deduper(private val system: ActorSystem,
     }
   }
 
-  private def doPostSendActions(mmds: List[MessageAndMetadata[String, Array[Byte]]], druidRecords: List[DruidRecord]) = {
+  private def doPostSendActions(mmds: List[MessageAndMetadata[String, Array[Byte]]], eventRecords: List[EventRecord]) = {
     val f = for {
-      addDedupKeyResult      <- addDedupKeys(druidRecords)
+      addDedupKeyResult      <- addDedupKeys(eventRecords)
       updateLastOffsetResult <- updateLastOffset(mmds) if (addDedupKeyResult.isDefined && addDedupKeyResult.get)
     } yield {
         partitionActor ! NextJob
@@ -405,10 +359,10 @@ class Deduper(private val system: ActorSystem,
     }
   }
 
-  private def addDedupKeys(druidRecords: List[DruidRecord]): Future[Option[Boolean]] = {
+  private def addDedupKeys(eventRecords: List[EventRecord]): Future[Option[Boolean]] = {
     log.debug(s"${partitionActor.path} ==> [STEP 7.1] start addDedupKeys")
-    if (!druidRecords.isEmpty) {
-      val eventKeys = druidRecords.map(_.event_key)
+    if (!eventRecords.isEmpty) {
+      val eventKeys = eventRecords.map(_.eventKey)
       log.debug(s"${partitionActor.path} ==> [STEP 7.2] eventKeys: $eventKeys")
       val dedupDocs = eventKeys.map(key => StringDocument.create(s"$dedupBucketKeyPrefix$key", dedupKeyTTL.toSeconds.toInt, ""))
       retryCouchbaseOperation{

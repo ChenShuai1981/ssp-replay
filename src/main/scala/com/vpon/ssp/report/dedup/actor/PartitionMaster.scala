@@ -4,7 +4,7 @@ import akka.actor._
 
 import scala.concurrent.duration._
 
-import com.vpon.ssp.report.common.couchbase.CBExtension
+import com.vpon.ssp.report.dedup.couchbase.CBExtension
 import com.vpon.ssp.report.dedup.actor.PartitionMasterProtocol.{PartitionStat, GetKafkaConnection, ReportKafkaConnection, ReportPartitionStat}
 import com.vpon.ssp.report.dedup.actor.ShepherdProtocol.AssignedPartitions
 import com.vpon.ssp.report.dedup.config.DedupConfig

@@ -13,8 +13,8 @@ import scala.concurrent.duration._
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.lang3.exception.ExceptionUtils
 
-import com.vpon.ssp.report.common.couchbase.CBExtension
-import com.vpon.ssp.report.common.discovery.CouchbaseNodeDiscoverer
+import com.vpon.ssp.report.dedup.couchbase.CBExtension
+import com.vpon.ssp.report.dedup.discovery.CouchbaseNodeDiscoverer
 import com.vpon.ssp.report.dedup.actor._
 import com.vpon.ssp.report.dedup.config.DedupConfig
 

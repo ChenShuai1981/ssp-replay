@@ -2,7 +2,7 @@ package com.vpon.ssp.report.dedup.flatten.config
 
 import scala.concurrent.duration.FiniteDuration
 
-import com.vpon.ssp.report.common.couchbase.RxCouchbaseBucket
+import com.vpon.ssp.report.dedup.couchbase.RxCouchbaseBucket
 
 case class FlattenConfig (
   bannerDelayPeriod: FiniteDuration,

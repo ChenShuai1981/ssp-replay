@@ -6,7 +6,7 @@ import scala.concurrent.duration._
 import akka.actor._
 import akka.pattern.GracefulStopSupport
 
-import com.vpon.ssp.report.common.util.SequentialExecFuture
+import com.vpon.ssp.report.dedup.util.SequentialExecFuture
 import com.vpon.ssp.report.dedup.actor.ActorReaperProtocol.{ReapAll, WatchActor}
 
 object ActorReaper {

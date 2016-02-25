@@ -7,15 +7,16 @@ import org.apache.commons.lang3.exception.ExceptionUtils
 import org.slf4j.LoggerFactory
 
 import com.vpon.mapping.exception.MappingException
-import com.vpon.ssp.report.common.model.{PlacementRecord, EventRecord, MediaRecord, TransactionRecord}
-import com.vpon.ssp.report.common.util._
+import com.vpon.ssp.report.dedup.couchbase.{ExchangeRateObjectKey, PublisherObjectKey, PlacementObjectKey, DspSspTaxRateObjectKey}
+import com.vpon.ssp.report.dedup.util._
 import com.vpon.ssp.report.dedup.flatten.exception.FlattenFailure
-import com.vpon.ssp.report.common.model._
+import com.vpon.ssp.report.dedup.model._
 
 import scala.math.BigDecimal
 
 import com.vpon.mapping._
 import com.vpon.ssp.report.flatten.cryption.crypto.DES
+import com.vpon.ssp.report.dedup.model.EventRecord
 import com.vpon.trade.Event.EVENTTYPE
 import com.vpon.trade.Media.MEDIATYPE
 import com.vpon.trade._
@@ -47,6 +48,13 @@ object Flattener {
       s"concurrencyLevel=${flattenConfig.concurrencyLevel}")
     deviceTypeMapping.init(s"maximumSize=${flattenConfig.deviceMaxSize},initialCapacity=${flattenConfig.deviceInitialCapacity}," +
       s"concurrencyLevel=${flattenConfig.concurrencyLevel}")
+
+    PlacementCache.init(s"maximumSize=${flattenConfig.placementMaxSize},initialCapacity=${flattenConfig.placementInitialCapacity}," +
+      s"concurrencyLevel=${flattenConfig.concurrencyLevel}, expireAfterWrite=${flattenConfig.placementExpire.toSeconds}s")
+    PublisherCache.init(s"maximumSize=${flattenConfig.publisherMaxSize},initialCapacity=${flattenConfig.publisherInitialCapacity}," +
+      s"concurrencyLevel=${flattenConfig.concurrencyLevel}, expireAfterWrite=${flattenConfig.publisherExpire.toSeconds}s")
+    ExchangeRateCache.init(s"maximumSize=${flattenConfig.exchangeRateMaxSize},initialCapacity=${flattenConfig.exchangeRateInitialCapacity}," +
+      s"concurrencyLevel=${flattenConfig.concurrencyLevel}, expireAfterWrite=${flattenConfig.exchangeRateExpire.toSeconds}s")
 
     geographyMapping.warmUp()
     carrierMapping.warmUp()
@@ -81,6 +89,10 @@ class Flattener private (flattenConfig: FlattenConfig,
 
   private[this] val couchbaseMaxRetries = flattenConfig.couchbaseMaxRetries
   private[this] val couchbaseRetryInterval = flattenConfig.couchbaseRetryInterval
+
+  private[this] val exchangeRateCacheManager = new ExchangeRateCacheManager(flattenBucket, flattenBucketKeyPrefix, couchbaseMaxRetries, couchbaseRetryInterval)
+  private[this] val placementCacheManager = new PlacementCacheManager(flattenBucket, flattenBucketKeyPrefix, couchbaseMaxRetries, couchbaseRetryInterval)
+  private[this] val publisherCacheManager = new PublisherCacheManager(flattenBucket, flattenBucketKeyPrefix, couchbaseMaxRetries, couchbaseRetryInterval)
 
   private[this] val trackerPoolCapacity = 8192
   private[this] val trackerPool = new PoolWithBlockingQueue[TimeTracker](new TrackerPoolFactory, trackerPoolCapacity)
@@ -326,11 +338,7 @@ class Flattener private (flattenConfig: FlattenConfig,
         s"\nOutput: vponConnectionType -> $vponConnectionType")
       vponConnectionTypeId = vponConnectionType.id
       _ = timeTracker.track("ConnectionTypeMapping.findVponConnectionTypeByCxntAndTelt")
-      deviceLanguage = device.`language`
-      (languageCode, locale) = getLanguageAndLocale(deviceLanguage)
-      vponLanguage = theLanguageMapping.findVponLanguageByLanguageCodeAndLocale(languageCode, locale)
-      _ = logger.debug(s"LanguageMapping.findVponLanguageByLanguageCodeAndLocale\nInput: languageCode-> $languageCode, locale -> $locale\nOutput: vponLanguage -> $vponLanguage")
-      vponLanguageId = vponLanguage.id
+      vponLanguageId = getLanguageId(device)
       _ = timeTracker.track("LanguageMapping.findVponLanguageByLanguageCodeAndLocale")
       userAgent = device.`userAgent`
       screenWidth = device.`screenWidth`
@@ -377,11 +385,11 @@ class Flattener private (flattenConfig: FlattenConfig,
         }
         case None => User.GENDERTYPE.UNKNOWN_GENDERTYPE.getNumber
       }
-      (site_domain: String, site_protocol: Int) = site match {
+      (siteDomain: String, siteProtocol: Int) = site match {
         case Some(s) => (s.`siteDomain`, s.`siteProtocol`.getNumber)
         case None => ("", Site.PROTOCOLTYPE.UNKNOWN_PROTOCOLTYPE.getNumber)
       }
-      app_id: String = app match {
+      appId: String = app match {
         case Some(a) => a.`appId`
         case None => ""
       }
@@ -394,85 +402,57 @@ class Flattener private (flattenConfig: FlattenConfig,
         case Some(dt) => dt.`clientTimezone`
         case None => None
       }
+      placementObject <- getPlacementObject(placementId, platformId)
+      publisherId = placementObject.publisher_id
+      placementGroupId = placementObject.group_id
+      contentCategory = placementObject.ucat
+      publisherObject <- getPublisherObject(publisherId, platformId)
+      publisherCountryCode = publisherObject.country_id
+      isCPMApplyDefault = publisherObject.is_cpm_apply_default
+      publisherRevenueShareType = publisherObject.publisher_revenue_share_type
+      bidFloor <- getPriceInUSD(bidFloorValue, bidFloorCur, exchangeRateVersion)
     } yield {
       EventRecord(
-        event_key = eventKey,
-        bid_id = bidId,
-        timestamp = bidTimestamp,
-        event_type = eventType.getNumber,
-        deviceSpecRecord = DeviceSpecRecord(
-          device_type = deviceType,
-          device_make = deviceMake,
-          device_model = deviceModel,
-          screen_width = screenWidth,
-          screen_height = screenHeight,
-          screen_density = vponDensityId
-        ),
-        deviceStatusRecord = DeviceStatusRecord(
-          carrier_id = vponCarrierId,
-          carrier_mcc = carrierMcc,
-          carrier_mnc = carrierMnc,
-          connection_type_id = vponConnectionTypeId,
-          connection_type_cxnt = connectionTypeCxnt,
-          connection_type_telt = connectionTypeTelt,
-          device_os = deviceOs,
-          user_agent = userAgent,
-          client_timestamp = clientTimestamp,
-          client_timezone = clientTimezone,
-          client_ip = clientIp,
-          language_id = vponLanguageId
-        ),
-        geographyRecord = GeographyRecord(
-          geo_ids = vponGeoIds,
-          city = geoCity,
-          country = geoCountry,
-          region = geoRegion
-        ),
-        placementRecord = PlacementRecord(
-          media_format = mediaFormat,
-          media_type = mediaType.getNumber,
-          media_size = mediaSize,
-          media_width = mediaWidth,
-          media_height = mediaHeight,
-          ad_position = adPosition match {
-            case Some(adp) => adp.getNumber
-            case None => Media.ADPOSITIONTYPE.UNKNOWN_ADPOSITIONTYPE.getNumber
-          },
-          placement_id = placementId,
-          supply_type = vponSupplyTypeId
-        ),
-        mediaRecord = MediaRecord(
-          iframe_state = iframeState match {
-            case Some(s) => s.getNumber
-            case None => Media.IFRAMESTATETYPE.UNKNOWN_IFRAMESTATETYPE.getNumber
-          },
-          screen_available_width = screenAvailableWidth,
-          screen_available_height = screenAvailableHeight,
-          site_protocol = site_protocol,
-          site_domain = site_domain,
-          app_id = app_id
-        ),
-        transactionRecord = TransactionRecord(
-          buyer_type = buyerTypeId,
-          buyer_id = dspId.getOrElse(""),
-          buyer_group_id = dspGroupId.getOrElse(""),
-          deal_type = dealType.getNumber,
-          impression_type = impressionType.getNumber,
-          seller_type = sellerTypeId,
-          seller_id = platformId,
-          bid_price = bidPrice,
-          clear_price = clearPrice
-        ),
-        userRecord = UserRecord(
-          user_age = userAge,
-          user_gender = userGender
-        ),
-        sdkRecord = SdkRecord(
-          sdk_version = sdk match {
-            case Some(s) => Some(s.version)
-            case None => None
-          }
-        )
+        appId = appId,
+        bidFloor = bidFloor,
+        bidId = bidId,
+        buyerGroupId = dspGroupId.getOrElse(""),
+        buyerId = dspId.getOrElse(""),
+        buyerType = buyerTypeId,
+        carrierId = vponCarrierId,
+        clearPrice = clearPrice,
+        connectionTypeId = vponConnectionTypeId,
+        contentCategory = contentCategory,
+        dealType = dealType.getNumber,
+        deviceMake = deviceMake,
+        deviceModel = deviceModel,
+        deviceOs = deviceOs,
+        deviceType = deviceType,
+        dspSspTaxRateVersion = dspSspTaxRateVersion,
+        eventKey = eventKey,
+        eventTime = bidTimestamp,
+        eventType = eventType.getNumber,
+        exchangeRateVersion = exchangeRateVersion,
+        geoIds = vponGeoIds,
+        impressionType = impressionType.getNumber,
+        isCPMApplyDefault = isCPMApplyDefault,
+        languageId = vponLanguageId,
+        mediaSize = mediaSize,
+        mediaType = mediaType.getNumber,
+        placementGroupId = placementGroupId,
+        placementId = placementId,
+        publisherCountryCode = publisherCountryCode,
+        publisherId = publisherId,
+        publisherRevenueShareType = publisherRevenueShareType,
+        publisherSspTaxRateVersion = publisherSspTaxRateVersion,
+        screenDensity = vponDensityId,
+        sellerId = platformId,
+        sellerType = sellerTypeId,
+        siteDomain = siteDomain,
+        siteProtocol = siteProtocol,
+        supplyType = vponSupplyTypeId,
+        userAge = userAge,
+        userGender = userGender
       )
     }
   }
@@ -501,6 +481,13 @@ class Flattener private (flattenConfig: FlattenConfig,
         logger.warn(err)
         false
       }
+    }
+  }
+
+  private def getPriceInUSD(value: BigDecimal, currency: String, exchangeRateVersion: Int): Future[BigDecimal] = {
+    currency match {
+      case CURRENCY_USD => Future{ value }
+      case _ => getExchangeRateObject(exchangeRateVersion, currency) map (er => value * er.to_usd_rate)
     }
   }
 
@@ -541,6 +528,71 @@ class Flattener private (flattenConfig: FlattenConfig,
 
   private def getFailureMessage(e:Exception, event: Event): String = {
     s"${e.getMessage}. The event type is ${event.`eventType`}, event key is ${event.`eventKey`}, event content is ${event.toJson()}"
+  }
+
+  private def getExchangeRateObject(exchangeRateVersion: Int, currency: String): Future[ExchangeRateObject] = {
+    exchangeRateCacheManager.get(exchangeRateVersion, currency) map (
+      exchangeRateObject => exchangeRateObject match {
+        case None =>
+          val docKey = ExchangeRateObjectKey(exchangeRateVersion, currency, flattenBucketKeyPrefix).docKey
+          throw new ExchangeRateObjectNotFoundException(s"Can not find exchange rate in couchbase. exchangeRateVersion=$exchangeRateVersion, currency=$currency, DocumentID=$docKey")
+        case Some(p) => p
+      }
+      )
+  }
+
+  private def getPlacementObject(placementId: String, platformId: String): Future[PlacementObject] = {
+    placementCacheManager.get(placementId, platformId) map (
+      placementObject => placementObject match {
+        case None =>
+          val docKey = PlacementObjectKey(placementId, platformId, flattenBucketKeyPrefix).docKey
+          throw new PlacementObjectNotFoundException(s"Can not find placement in couchbase. placementId=$placementId, platformId=$platformId, DocumentID=$docKey")
+        case Some(p) => p
+      }
+      )
+  }
+
+  private def getPublisherObject(publisherId: String, platformId: String): Future[PublisherObject] = {
+    publisherCacheManager.get(publisherId, platformId) map (
+      publisherObject => publisherObject match {
+        case None =>
+          val docKey = PublisherObjectKey(publisherId, platformId, flattenBucketKeyPrefix).docKey
+          throw new PublisherObjectNotFoundException(s"Can not find publisher in couchbase. publisherId=$publisherId, platformId=$platformId, DocumentID=$docKey")
+        case Some(p) => validatePublisherRevenueShareType(p, publisherId, platformId)
+      }
+      )
+  }
+
+  private def validatePublisherRevenueShareType(p: PublisherObject, publisherId: String, platformId: String): PublisherObject = {
+    val publisherRevenueShareTypeId = p.publisher_revenue_share_type
+    val docKey = PublisherObjectKey(publisherId, platformId, flattenBucketKeyPrefix).docKey
+    val errorMessage = s"Invalid publisher_revenue_share_type setting of PublisherObject [$docKey]: ${publisherRevenueShareTypeId}, " +
+      s"system only supports ${PublisherRevenueShareType.OWNER_CPM} and ${PublisherRevenueShareType.OWNER_REVENUE_SHARE}."
+    try {
+      val publisherRevenueShareType = PublisherRevenueShareType(publisherRevenueShareTypeId)
+      publisherRevenueShareType match {
+        case PublisherRevenueShareType.OWNER_REVENUE_SHARE | PublisherRevenueShareType.OWNER_CPM => p
+        case _ => throw new UnsupportedPublisherRevenueShareTypeException(errorMessage)
+      }
+    } catch {
+      case e: Exception => throw new UnsupportedPublisherRevenueShareTypeException(errorMessage)
+    }
+  }
+
+  private def validateSellerRevenueShareType(p: DspSspTaxRateObject, dspSspTaxRateVersion: Int, dspId: String, platformId: String): DspSspTaxRateObject = {
+    val sellerRevenueShareTypeId = p.seller_revenue_share_type
+    val docKey = DspSspTaxRateObjectKey(dspSspTaxRateVersion, dspId, platformId, flattenBucketKeyPrefix).docKey
+    val errorMessage = s"Invalid seller_revenue_share_type setting of DspSspTaxRateObject [$docKey]: ${sellerRevenueShareTypeId}, " +
+      s"system only supports ${SellerRevenueShareType.PERCENT} and ${SellerRevenueShareType.FIXED_CPM}."
+    try {
+      val sellerRevenueShareType = SellerRevenueShareType(sellerRevenueShareTypeId)
+      sellerRevenueShareType match {
+        case SellerRevenueShareType.PERCENT | SellerRevenueShareType.FIXED_CPM => p
+        case _ => throw new UnsupportedSellerRevenueShareTypeException(errorMessage)
+      }
+    } catch {
+      case e: Exception => throw new UnsupportedSellerRevenueShareTypeException(errorMessage)
+    }
   }
 
   private def validateDealType(dealType: DEALTYPE.EnumVal): Unit = {

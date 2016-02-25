@@ -35,11 +35,9 @@ object PartitionMetricsProtocol {
 
   case class CouchbaseDedup(sourceCount: Int, targetCount: Int, time: Double)
 
-  case class KafkaDedup(sourceCount: Int, targetCount: Int, time: Double)
-
   case class Flatten(time: Double)
 
-  case class Send(count: Int, time: Double)
+  case class Send(time: Double)
 
   case class LastOffset(offset: Long)
 
@@ -48,8 +46,6 @@ object PartitionMetricsProtocol {
   case object Reset
 
   case object Resume
-
-  case class Convert(time: Double)
 
   /**
    * FlattenFailures
@@ -77,10 +73,6 @@ object PartitionMetricsProtocol {
 
   case class ExchangeRateNotFound(offset: Long, key: String)
 
-  case class PublisherSspTaxRateNotFound(offset: Long, key: String)
-
-  case class DspSspTaxRateNotFound(offset: Long, key: String)
-
   case class SecretKeyNotFound(offset: Long, key: String)
 
   case class DecryptClearPriceError(offset: Long, key: String)
@@ -90,16 +82,6 @@ object PartitionMetricsProtocol {
   case class UnsupportedSellerRevenueShareType(offset: Long, key: String)
 
   case class UnsupportedDealType(offset: Long, key: String)
-
-  /**
-   * ConvertFailures
-   */
-
-  case class UnknownImpressionType(offset: Long, key: String)
-
-  case class UnknownDealType(offset: Long, key: String)
-
-  case class BlankImpressionTypeInImpressionEvent(offset: Long, key: String)
 
 }
 
@@ -166,11 +148,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
   private var accCouchbaseDedups = 0L
   private var avgCouchbaseDedupTime = 0d
 
-  private var totalKafkaDedups = 0L
-  private var avgKafkaDedupsPerSec = 0d
-  private var accKafkaDedups = 0L
-  private var avgKafkaDedupTime = 0d
-
   private var totalSends = 0L
   private var avgSendsPerSec = 0d
   private var accSends = 0L
@@ -228,14 +205,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
   private var avgExchangeRateNotFoundsPerSec = 0d
   private var accExchangeRateNotFounds = 0L
 
-  private var totalPublisherSspTaxRateNotFounds = 0L
-  private var avgPublisherSspTaxRateNotFoundsPerSec = 0d
-  private var accPublisherSspTaxRateNotFounds = 0L
-
-  private var totalDspSspTaxRateNotFounds = 0L
-  private var avgDspSspTaxRateNotFoundsPerSec = 0d
-  private var accDspSspTaxRateNotFounds = 0L
-
   private var totalSecretKeyNotFounds = 0L
   private var avgSecretKeyNotFoundsPerSec = 0d
   private var accSecretKeyNotFounds = 0L
@@ -291,11 +260,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       accCouchbaseDedups = 0L
       avgCouchbaseDedupTime = 0d
 
-      totalKafkaDedups = 0L
-      avgKafkaDedupsPerSec = 0d
-      accKafkaDedups = 0L
-      avgKafkaDedupTime = 0d
-
       totalFlattens = 0L
       avgFlattensPerSec = 0d
       accFlattens = 0L
@@ -345,14 +309,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       avgExchangeRateNotFoundsPerSec = 0d
       accExchangeRateNotFounds = 0L
 
-      totalPublisherSspTaxRateNotFounds = 0L
-      avgPublisherSspTaxRateNotFoundsPerSec = 0d
-      accPublisherSspTaxRateNotFounds = 0L
-
-      totalDspSspTaxRateNotFounds = 0L
-      avgDspSspTaxRateNotFoundsPerSec = 0d
-      accDspSspTaxRateNotFounds = 0L
-
       totalSecretKeyNotFounds = 0L
       avgSecretKeyNotFoundsPerSec = 0d
       accSecretKeyNotFounds = 0L
@@ -388,130 +344,114 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
     case Consume(offset, key) =>
       log.debug(s"${self.path} ===> Consume (offset = $offset, key = $key)")
       totalConsumes += 1
-      calculateAverage(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case SelfDedup(sourceCount, targetCount, time) =>
       log.debug(s"${self.path} ===> SelfDedup (sourceCount=$sourceCount, targetCount=$targetCount, time = $time)")
       totalSelfDedups += sourceCount
       avgSelfDedupTime = movingAverage(avgSelfDedupTime, time / sourceCount)
-      calculateAverage(0, sourceCount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, sourceCount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case CouchbaseDedup(sourceCount, targetCount, time) =>
       log.debug(s"${self.path} ===> CouchbaseDedup (sourceCount=$sourceCount, targetCount=$targetCount, time = $time)")
       totalCouchbaseDedups += sourceCount
       avgCouchbaseDedupTime = movingAverage(avgCouchbaseDedupTime, time / sourceCount)
-      calculateAverage(0, 0, sourceCount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-
-    case KafkaDedup(sourceCount, targetCount, time) =>
-      log.debug(s"${self.path} ===> KafkaDedup (sourceCount=$sourceCount, targetCount=$targetCount, time = $time)")
-      totalKafkaDedups += sourceCount
-      avgKafkaDedupTime = movingAverage(avgKafkaDedupTime, time / sourceCount)
-      calculateAverage(0, 0, 0, sourceCount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, sourceCount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case Flatten(time) =>
       log.debug(s"${self.path} ===> Flatten (time = $time)")
       totalFlattens += 1
       avgFlattenTime = movingAverage(avgFlattenTime, time)
-      calculateAverage(0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case MappingError(offset, key) =>
       log.debug(s"${self.path} ===> MappingError (offset = $offset, key = $key)")
       totalMappingErrors += 1
-      calculateAverage(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case CouchbaseError(offset, key) =>
       log.debug(s"${self.path} ===> CouchbaseError (offset = $offset, key = $key)")
       totalCouchbaseErrors += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case UnknownError(offset, key) =>
       log.debug(s"${self.path} ===> UnknownError (offset = $offset, key = $key)")
       totalUnknownErrors += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case CouchbaseDeserializationError(offset, key) =>
       log.debug(s"${self.path} ===> CouchbaseDeserializationError (offset = $offset, key = $key)")
       totalCouchbaseDeserializationErrors += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case DelayedEvent(offset, key) =>
       log.debug(s"${self.path} ===> DelayedEvent (offset = $offset, key = $key)")
       totalDelayEvents += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case UnParsedEvent(offset, key) =>
       log.debug(s"${self.path} ===> UnParsedEvent (offset = $offset, key = $key)")
       totalUnParsedEvents += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case UnknownEventType(offset, key) =>
       log.debug(s"${self.path} ===> UnknownEventType (offset = $offset, key = $key)")
       totalUnknownEventTypes += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case InvalidEvent(offset, key) =>
       log.debug(s"${self.path} ===> InvalidEvent (offset = $offset, key = $key)")
       totalInvalidEvents += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case PlacementNotFound(offset, key) =>
       log.debug(s"${self.path} ===> PlacementNotFound (offset = $offset, key = $key)")
       totalPlacementNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0,0,  0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0,0,  0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case PublisherNotFound(offset, key) =>
       log.debug(s"${self.path} ===> PublisherNotFound (offset = $offset, key = $key)")
       totalPublisherNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case ExchangeRateNotFound(offset, key) =>
       log.debug(s"${self.path} ===> ExchangeRateNotFound (offset = $offset, key = $key)")
       totalExchangeRateNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0)
-
-    case PublisherSspTaxRateNotFound(offset, key) =>
-      log.debug(s"${self.path} ===> PublisherSspTaxRateNotFound (offset = $offset, key = $key)")
-      totalPublisherSspTaxRateNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0)
-
-    case DspSspTaxRateNotFound(offset, key) =>
-      log.debug(s"${self.path} ===> DspSspTaxRateNotFound (offset = $offset, key = $key)")
-      totalDspSspTaxRateNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case SecretKeyNotFound(offset, key) =>
       log.debug(s"${self.path} ===> SecretKeyNotFound (offset = $offset, key = $key)")
       totalSecretKeyNotFounds += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0)
 
     case DecryptClearPriceError(offset, key) =>
       log.debug(s"${self.path} ===> DecryptClearPriceError (offset = $offset, key = $key)")
       totalDecryptClearPriceErrors += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
 
     case UnsupportedPublisherRevenueShareType(offset, key) =>
       log.debug(s"${self.path} ===> UnsupportedPublisherRevenueShareType (offset = $offset, key = $key)")
       totalUnsupportedPublisherRevenueShareTypes += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0)
 
     case UnsupportedSellerRevenueShareType(offset, key) =>
       log.debug(s"${self.path} ===> UnsupportedSellerRevenueShareType (offset = $offset, key = $key)")
       totalUnsupportedSellerRevenueShareTypes += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0)
 
     case UnsupportedDealType(offset, key) =>
       log.debug(s"${self.path} ===> UnsupportedDealType (offset = $offset, key = $key)")
       totalUnsupportedDealTypes += 1
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
 
-    case Send(count, time) =>
-      log.debug(s"${self.path} ===> Send (count = $count, time = $time)")
-      totalSends += count
-      avgSendTime = movingAverage(avgSendTime, time / count)
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, count)
+    case Send(time) =>
+      log.debug(s"${self.path} ===> Send (time = $time)")
+      totalSends += 1
+      avgSendTime = movingAverage(avgSendTime, time)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 
     case Refresh =>
-      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      calculateAverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     case Error(err: String) if (!err.isEmpty) =>
       log.debug(s"${self.path} ===> Error")
@@ -549,7 +489,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
         "consumes" -> JsNumber(totalConsumes),
         "selfDedups" -> JsNumber(totalSelfDedups),
         "couchbaseDedups" -> JsNumber(totalCouchbaseDedups),
-        "kafkaDedups" -> JsNumber(totalKafkaDedups),
         "flattens" -> JsNumber(totalFlattens),
         "mappingErrors" -> JsNumber(totalMappingErrors),
         "couchbaseErrors" -> JsNumber(totalCouchbaseErrors),
@@ -562,8 +501,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
         "placementNotFounds" -> JsNumber(totalPlacementNotFounds),
         "publisherNotFounds" -> JsNumber(totalPublisherNotFounds),
         "exchangeRateNotFounds" -> JsNumber(totalExchangeRateNotFounds),
-        "publisherSspTaxRateNotFound" -> JsNumber(totalPublisherSspTaxRateNotFounds),
-        "dspSspTaxRateNotFound" -> JsNumber(totalDspSspTaxRateNotFounds),
         "secretKeyNotFound" -> JsNumber(totalSecretKeyNotFounds),
         "decryptClearPriceErrors" -> JsNumber(totalDecryptClearPriceErrors),
         "unsupportedPublisherRevenueShareTypes" -> JsNumber(totalUnsupportedPublisherRevenueShareTypes),
@@ -574,13 +511,11 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       "average" -> JsObject(
         "avg_self_dedup_time" -> JsNumber(avgSelfDedupTime),
         "avg_couchbase_dedup_time" -> JsNumber(avgCouchbaseDedupTime),
-        "avg_kafka_dedup_time" -> JsNumber(avgKafkaDedupTime),
         "avg_flatten_time" -> JsNumber(avgFlattenTime),
         "avg_send_time" -> JsNumber(avgSendTime),
         "consumes_per_second" -> JsNumber(avgConsumesPerSec),
         "self_dedups_per_second" -> JsNumber(avgSelfDedupsPerSec),
         "couchbase_dedups_per_second" -> JsNumber(avgCouchbaseDedupsPerSec),
-        "kafka_dedups_per_second" -> JsNumber(avgKafkaDedupsPerSec),
         "flattens_per_second" -> JsNumber(avgFlattensPerSec),
         "mapping_errors_per_second" -> JsNumber(avgMappingErrorsPerSec),
         "couchbase_errors_per_second" -> JsNumber(avgCouchbaseErrorsPerSec),
@@ -593,8 +528,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
         "placement_not_founds_per_second" -> JsNumber(avgPlacementNotFoundsPerSec),
         "publisher_not_founds_per_second" -> JsNumber(avgPublisherNotFoundsPerSec),
         "exchange_rate_not_founds_per_second" -> JsNumber(avgExchangeRateNotFoundsPerSec),
-        "publisher_ssp_tax_rate_not_founds_per_second" -> JsNumber(avgPublisherSspTaxRateNotFoundsPerSec),
-        "dsp_ssp_tax_rate_not_founds_per_second" -> JsNumber(avgDspSspTaxRateNotFoundsPerSec),
         "secret_key_not_founds_per_second" -> JsNumber(avgSecretKeyNotFoundsPerSec),
         "decrypt_clear_price_errors_per_second" -> JsNumber(avgDecryptClearPriceErrorsPerSec),
         "unsupported_publisher_revenue_share_types_per_second" -> JsNumber(avgUnsupportedPublisherRevenueShareTypesPerSec),
@@ -609,7 +542,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
     consumeIncrementor: Int,
     selfDedupIncrementor: Int,
     couchbaseDedupIncrementor: Int,
-    kafkaDedupIncrementor: Int,
     flattenIncrementor: Int,
     mappingErrorIncrementor: Int,
     couchbaseErrorIncrementor: Int,
@@ -638,7 +570,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       avgConsumesPerSec = movingAverage(avgConsumesPerSec, accConsumes / timeDiffInSec)
       avgSelfDedupsPerSec = movingAverage(avgSelfDedupsPerSec, accSelfDedups / timeDiffInSec)
       avgCouchbaseDedupsPerSec = movingAverage(avgCouchbaseDedupsPerSec, accCouchbaseDedups / timeDiffInSec)
-      avgKafkaDedupsPerSec = movingAverage(avgKafkaDedupsPerSec, accKafkaDedups / timeDiffInSec)
       avgFlattensPerSec = movingAverage(avgFlattensPerSec, accFlattens / timeDiffInSec)
       avgMappingErrorsPerSec = movingAverage(avgMappingErrorsPerSec, accMappingErrors / timeDiffInSec)
       avgCouchbaseErrorsPerSec = movingAverage(avgCouchbaseErrorsPerSec, accCouchbaseErrors / timeDiffInSec)
@@ -651,8 +582,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       avgPlacementNotFoundsPerSec = movingAverage(avgPlacementNotFoundsPerSec, accPlacementNotFounds / timeDiffInSec)
       avgPublisherNotFoundsPerSec = movingAverage(avgPublisherNotFoundsPerSec, accPublisherNotFounds / timeDiffInSec)
       avgExchangeRateNotFoundsPerSec = movingAverage(avgExchangeRateNotFoundsPerSec, accExchangeRateNotFounds / timeDiffInSec)
-      avgPublisherSspTaxRateNotFoundsPerSec = movingAverage(avgPublisherSspTaxRateNotFoundsPerSec, accPublisherSspTaxRateNotFounds / timeDiffInSec)
-      avgDspSspTaxRateNotFoundsPerSec = movingAverage(avgDspSspTaxRateNotFoundsPerSec, accDspSspTaxRateNotFounds / timeDiffInSec)
       avgSecretKeyNotFoundsPerSec = movingAverage(avgSecretKeyNotFoundsPerSec, accSecretKeyNotFounds / timeDiffInSec)
       avgDecryptClearPriceErrorsPerSec = movingAverage(avgDecryptClearPriceErrorsPerSec, accDecryptClearPriceErrors / timeDiffInSec)
       avgUnsupportedPublisherRevenueShareTypesPerSec = movingAverage(avgUnsupportedPublisherRevenueShareTypesPerSec, accUnsupportedPublisherRevenueShareTypes / timeDiffInSec)
@@ -663,7 +592,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       accConsumes = 0
       accSelfDedups = 0
       accCouchbaseDedups = 0
-      accKafkaDedups = 0
       accFlattens = 0
       accMappingErrors = 0
       accCouchbaseErrors = 0
@@ -676,8 +604,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       accPlacementNotFounds = 0
       accPublisherNotFounds = 0
       accExchangeRateNotFounds = 0
-      accPublisherSspTaxRateNotFounds = 0
-      accDspSspTaxRateNotFounds = 0
       accSecretKeyNotFounds = 0
       accDecryptClearPriceErrors = 0
       accUnsupportedPublisherRevenueShareTypes = 0
@@ -688,7 +614,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       accConsumes += consumeIncrementor
       accSelfDedups += selfDedupIncrementor
       accCouchbaseDedups += couchbaseDedupIncrementor
-      accKafkaDedups += kafkaDedupIncrementor
       accFlattens += flattenIncrementor
       accMappingErrors += mappingErrorIncrementor
       accCouchbaseErrors += couchbaseErrorIncrementor
@@ -701,8 +626,6 @@ class PartitionMetrics(val partitionId: Int) extends Actor with ActorLogging {
       accPlacementNotFounds += placementNotFoundIncrementor
       accPublisherNotFounds += publisherNotFoundIncrementor
       accExchangeRateNotFounds += exchangeRateNotFoundIncrementor
-      accPublisherSspTaxRateNotFounds += publisherSspTaxRateNotFoundIncrementor
-      accDspSspTaxRateNotFounds += dspSspTaxRateNotFoundIncrementor
       accSecretKeyNotFounds += secretKeyNotFoundIncrementor
       accDecryptClearPriceErrors += decryptClearPriceErrorIncrementor
       accUnsupportedPublisherRevenueShareTypes += unsupportedPublisherRevenueShareTypeIncrementor

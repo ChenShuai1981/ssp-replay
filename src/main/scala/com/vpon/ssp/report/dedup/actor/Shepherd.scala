@@ -7,7 +7,7 @@ import akka.cluster.{Cluster, MemberStatus}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-import com.vpon.ssp.report.common.kafka.consumer.KafkaCluster
+import com.vpon.ssp.report.dedup.kafka.consumer.KafkaCluster
 import com.vpon.ssp.report.dedup.actor.PartitionMasterProtocol.ReportKafkaConnection
 import com.vpon.ssp.report.dedup.actor.ShepherdProtocol._
 import com.vpon.ssp.report.dedup.actor.impl.EvenHashing

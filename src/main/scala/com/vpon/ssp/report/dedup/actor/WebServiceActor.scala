@@ -26,13 +26,13 @@ import spray.http.MediaTypes._
 import spray.http._
 import spray.httpx.unmarshalling._
 import spray.httpx.SprayJsonSupport._
-import com.vpon.ssp.report.common.couchbase.CBExtension
+import com.vpon.ssp.report.dedup.couchbase.CBExtension
 import com.vpon.ssp.report.dedup.flatten.Flattener
 import com.vpon.ssp.report.dedup.flatten.exception.FlattenFailure
 import com.vpon.ssp.report.edge.Trade.TradeLogJsonProtocol
-import com.vpon.ssp.report.common.model.{EventRecord, EventRecordJsonProtocol}
-import EventRecordJsonProtocol._
+import com.vpon.ssp.report.dedup.model.{EventRecordJsonProtocol, EventRecord}
 import TradeLogJsonProtocol._
+import EventRecordJsonProtocol._
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -41,7 +41,7 @@ import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 
 import com.vpon.mapping.{DeviceTypeMapping, GeographyMapping}
-import com.vpon.ssp.report.common.kafka.producer.CustomPartitionProducer
+import com.vpon.ssp.report.dedup.kafka.producer.CustomPartitionProducer
 import com.vpon.ssp.report.dedup.actor.PartitionActorProtocol.{ResumeWork, PauseWork, ResetWork}
 import com.vpon.ssp.report.dedup.actor.PartitionMasterProtocol.{PartitionStat, GetKafkaConnection, ReportPartitionStat}
 import com.vpon.ssp.report.dedup.actor.PartitionMetricsProtocol.{GetInfo, GetMetrics}
@@ -49,7 +49,6 @@ import com.vpon.ssp.report.dedup.config.DedupConfig
 import com.vpon.ssp.report.edge.Trade.{EdgeConvertFailure, EdgeEvent}
 import com.vpon.ssp.report.dedup.flatten._
 import com.vpon.ssp.report.dedup.flatten.exception.FlattenFailure
-import com.vpon.ssp.report.common.model.EventRecord
 
 
 object WebServiceActor {
@@ -345,7 +344,7 @@ class WebServiceActor extends Actor with ActorLogging with DedupConfig {
 
     def transformResponse(eventRecord: EventRecord): HttpResponse = {
       val targetKafkaProducer = new CustomPartitionProducer[String, String](flattenEventsBrokers, "kafka.serializer.StringEncoder", true)
-      val keyedMessage = new KeyedMessage(flattenEventsTopic, eventRecord.event_key, eventRecord.toJson.compactPrint)
+      val keyedMessage = new KeyedMessage(flattenEventsTopic, eventRecord.eventKey, eventRecord.toJson.compactPrint)
       try {
         targetKafkaProducer.sendMessages(Seq(keyedMessage))
         HttpResponse(status = StatusCodes.OK, entity = HttpEntity(`text/plain`, "Success sent event record to kafka topic 2!"))

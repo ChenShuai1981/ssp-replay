@@ -5,42 +5,43 @@ import sbtassembly.AssemblyPlugin.autoImport._
 
 organization := "com.vpon"
 
-name := "ssp-etl-dedup"
+name := "ssp-etl"
 
 version := "0.1-SNAPSHOT"
 
 scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
-  "com.vpon"                  %% "vpon-mapping"              % "0.1-SNAPSHOT",
-  "com.vpon"                  %% "ssp-etl-common"            % "0.1-SNAPSHOT",
-  "org.apache.httpcomponents" %  "httpcore-nio"              % "4.2",
-  "org.apache.httpcomponents" %  "httpcore"                  % "4.2",
-  "com.typesafe"              %  "config"                    % "1.2.1",
-  "ch.qos.logback"            %  "logback-classic"           % "1.1.3",
-  "com.typesafe.akka"         %% "akka-actor"                % "2.3.11",
-  "com.typesafe.akka"         %% "akka-cluster"              % "2.3.11",
-  "com.typesafe.akka"         %% "akka-contrib"              % "2.3.11",
-  "com.typesafe.akka"         %% "akka-remote"               % "2.3.11",
-  "com.typesafe.akka"         %% "akka-slf4j"                % "2.3.11",
-  "io.spray"                  %% "spray-can"                 % "1.3.2",
-  "io.spray"                  %% "spray-json"                % "1.3.2",
-  "io.spray"                  %% "spray-httpx"               % "1.3.2",
-  "net.sandrogrzicic"         %% "scalabuff-compiler"        % "1.4.0"        % "compile",
-  "net.sandrogrzicic"         %% "scalabuff-runtime"         % "1.4.0",
-  "org.apache.commons"        %  "commons-lang3"             % "3.4",
-  "com.github.scopt"          %% "scopt"                     % "3.3.0",
-  "org.json4s"                %% "json4s-jackson"            % "3.2.10",
-  "com.github.nscala-time"    %% "nscala-time"               % "2.2.0",
-  "com.twitter"               %% "util-core"                 % "6.25.0",
-  "org.scalacheck"            %% "scalacheck"                % "1.12.2",
-  "org.scalatest"             %% "scalatest"                 % "2.2.4",
-  "com.amazonaws"             %  "aws-java-sdk"              % "1.9.6",
-  "com.typesafe.akka"         %% "akka-slf4j"                % "2.3.11"        % "test",
-  "com.typesafe.akka"         %% "akka-testkit"              % "2.3.11"        % "test",
-  "org.mockito"               %  "mockito-all"               % "1.9.5"         % "test",
-  "org.scalatest"             %% "scalatest"                 % "2.2.1"         % "test",
-  "net.manub"                 %% "scalatest-embedded-kafka"  % "0.3.0"         % "test"
+  "com.vpon"                  %% "vpon-mapping"               % "0.1-SNAPSHOT",
+  "org.apache.httpcomponents" %  "httpcore-nio"               % "4.2",
+  "org.apache.httpcomponents" %  "httpcore"                   % "4.2",
+  "com.typesafe"              %  "config"                     % "1.2.1",
+  "ch.qos.logback"            %  "logback-classic"            % "1.1.3",
+  "com.typesafe.akka"         %% "akka-actor"                 % "2.3.11",
+  "com.typesafe.akka"         %% "akka-cluster"               % "2.3.11",
+  "com.typesafe.akka"         %% "akka-contrib"               % "2.3.11",
+  "com.typesafe.akka"         %% "akka-remote"                % "2.3.11",
+  "com.typesafe.akka"         %% "akka-slf4j"                 % "2.3.11",
+  "io.spray"                  %% "spray-can"                  % "1.3.2",
+  "io.spray"                  %% "spray-json"                 % "1.3.2",
+  "io.spray"                  %% "spray-httpx"                % "1.3.2",
+  "com.couchbase.client"      %  "java-client"                % "2.2.1",
+  "org.apache.kafka"          %% "kafka"                      % "0.8.2.1",
+  "org.apache.commons"        %  "commons-lang3"              % "3.4",
+  "com.github.scopt"          %% "scopt"                      % "3.3.0",
+  "org.json4s"                %% "json4s-jackson"             % "3.2.10",
+  "com.github.nscala-time"    %% "nscala-time"                % "2.2.0",
+  "com.twitter"               %% "util-core"                  % "6.25.0",
+  "org.scalacheck"            %% "scalacheck"                 % "1.12.2",
+  "org.scalatest"             %% "scalatest"                  % "2.2.4",
+  "com.amazonaws"             %  "aws-java-sdk"               % "1.9.6",
+  "net.sandrogrzicic"         %% "scalabuff-runtime"          % "1.4.0",
+  "net.sandrogrzicic"         %% "scalabuff-compiler"         % "1.4.0"         % "compile",
+  "com.typesafe.akka"         %% "akka-slf4j"                 % "2.3.11"        % "test",
+  "com.typesafe.akka"         %% "akka-testkit"               % "2.3.11"        % "test",
+  "org.mockito"               %  "mockito-all"                % "1.9.5"         % "test",
+  "org.scalatest"             %% "scalatest"                  % "2.2.1"         % "test",
+  "net.manub"                 %% "scalatest-embedded-kafka"   % "0.3.0"         % "test"
 )
 
 resolvers ++= Seq(

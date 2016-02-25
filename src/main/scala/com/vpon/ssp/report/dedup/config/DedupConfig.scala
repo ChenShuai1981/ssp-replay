@@ -5,14 +5,12 @@ import java.util.concurrent.TimeUnit
 import scala.language.postfixOps
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
-import scala.util.Try
 
 import spray.json.{JsNumber, JsString, JsObject, JsValue}
 import com.couchbase.client.java.CouchbaseCluster
 import com.typesafe.config.ConfigFactory
 
-import com.vpon.ssp.report.common.config.{KafkaConfig, ClusterConfig, CouchbaseConfig}
-import com.vpon.ssp.report.common.couchbase.BucketInfo
+import com.vpon.ssp.report.dedup.couchbase.BucketInfo
 
 
 trait DedupConfig {

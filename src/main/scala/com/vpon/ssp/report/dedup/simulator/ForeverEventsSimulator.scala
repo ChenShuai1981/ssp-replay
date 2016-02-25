@@ -5,7 +5,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import org.slf4j.LoggerFactory
 
-import com.vpon.ssp.report.common.kafka.producer.CustomPartitionProducer
+import com.vpon.ssp.report.dedup.kafka.producer.CustomPartitionProducer
 import com.vpon.ssp.report.dedup.generator.EventGenerator
 import com.vpon.trade.Event
 import com.vpon.trade.Event.EVENTTYPE

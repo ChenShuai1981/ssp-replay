@@ -16,8 +16,6 @@ object FlattenFailureType extends Enumeration {
   val PlacementNotFound = Value("placement_not_found")
   val PublisherNotFound = Value("publisher_not_found")
   val ExchangeRateNotFound = Value("exchange_rate_not_found")
-  val PublisherSspTaxRateNotFound = Value("publisher_ssp_tax_rate_not_found")
-  val DspSspTaxRateNotFound = Value("dsp_ssp_tax_rate_not_found")
   val SecretKeyNotFound = Value("secret_key_not_found")
   val DecryptClearPriceError = Value("decript_clear_price_error")
   val UnsupportedPublisherRevenueShareType = Value("unsupported_publisher_revenue_share_type")
