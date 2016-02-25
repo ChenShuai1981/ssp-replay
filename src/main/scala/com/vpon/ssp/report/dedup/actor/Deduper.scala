@@ -57,7 +57,9 @@ class Deduper(private val system: ActorSystem,
   private val warningKafkaProducer = new CustomPartitionProducer[String, String](warningEventsBrokers)
 
   private val awsService = new AwsService(
-    new AwsConfig(s3BucketName = "ssp-indexing-1",
+    new AwsConfig(
+      regionName = "ap-northeast-1",
+      s3BucketName = "ssp-indexing-1",
       needCompress = false,
       needEncrypt = false,
       kinesisStreamName = "S3FileStream"

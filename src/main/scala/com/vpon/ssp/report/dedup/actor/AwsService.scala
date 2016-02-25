@@ -9,10 +9,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import com.amazonaws.auth.{AWSCredentialsProvider, DefaultAWSCredentialsProviderChain, AWSCredentials}
 import com.amazonaws.event.{ProgressEventType, ProgressEvent, ProgressListener}
 import com.amazonaws.handlers.AsyncHandler
+import com.amazonaws.regions.RegionUtils
 import com.amazonaws.services.kinesis.AmazonKinesisAsyncClient
 import com.amazonaws.services.kinesis.model.{DescribeStreamResult, PutRecordResult, PutRecordRequest, ResourceNotFoundException}
 import com.amazonaws.services.s3.model.{PutObjectRequest, ObjectMetadata}
 import com.amazonaws.services.s3.transfer.{Upload, TransferManager}
+import org.apache.commons.lang3.exception.ExceptionUtils
 import org.slf4j.LoggerFactory
 
 import com.vpon.ssp.report.dedup.model.EventRecord
@@ -20,6 +22,7 @@ import com.vpon.ssp.report.dedup.util.S3Util
 
 
 case class AwsConfig (
+   regionName: String,
    s3BucketName: String,
    needCompress: Boolean,
    needEncrypt: Boolean,
@@ -35,6 +38,8 @@ class AwsService(awsConfig: AwsConfig) {
   val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
   val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
 
+  val regionName = awsConfig.regionName
+
   val tx: TransferManager = new TransferManager(credentials)
 
   val s3BucketName: String = awsConfig.s3BucketName
@@ -46,6 +51,8 @@ class AwsService(awsConfig: AwsConfig) {
   val needEncrypt: Boolean = awsConfig.needEncrypt
 
   val kinesisAsyncClient = new AmazonKinesisAsyncClient(credentials)
+  val region = RegionUtils.getRegion(regionName)
+  kinesisAsyncClient.setRegion(region)
 
   val kinesisStreamName: String = awsConfig.kinesisStreamName
 
@@ -106,7 +113,10 @@ class AwsService(awsConfig: AwsConfig) {
         kinesisResult <- kinesisFuture if s3Result
       } yield {
         kinesisResult match {
-          case true => groupedRecords.size
+          case true => {
+            println("=====> Successfully send to kinesis stream")
+            groupedRecords.size
+          }
           case false => 0
         }
       }
@@ -135,7 +145,7 @@ class AwsService(awsConfig: AwsConfig) {
       new AsyncHandler[PutRecordRequest, PutRecordResult]() {
         @Override
         def onError(e: Exception) {
-          logger.error("Can't publish the record")
+          logger.error("Can't publish the record " + ExceptionUtils.getStackTrace(e))
           p.success(false)
         }
 
