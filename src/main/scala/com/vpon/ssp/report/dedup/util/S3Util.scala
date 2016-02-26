@@ -13,8 +13,8 @@ object S3Util {
 
   def getS3FileName(records: List[EventRecord], partitionId: Option[Int]): String = {
     partitionId match {
-      case Some(pid) => pid + "-" + records.head.eventKey + "-" + records.last.eventKey
-      case None => records.head.eventKey + "-" + records.last.eventKey
+      case Some(pid) => pid + "*" + records.size + "*" + records.head.eventKey + "*" + records.last.eventKey
+      case None => records.head.eventKey + "*" + records.last.eventKey
     }
   }
 
