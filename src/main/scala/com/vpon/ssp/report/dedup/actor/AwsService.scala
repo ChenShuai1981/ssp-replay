@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import scala.concurrent.{Promise, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import com.amazonaws.auth.{AWSCredentialsProvider, DefaultAWSCredentialsProviderChain, AWSCredentials}
+import com.amazonaws.auth.{BasicAWSCredentials, AWSCredentialsProvider, DefaultAWSCredentialsProviderChain, AWSCredentials}
 import com.amazonaws.event.{ProgressEventType, ProgressEvent, ProgressListener}
 import com.amazonaws.handlers.AsyncHandler
 import com.amazonaws.regions.RegionUtils
@@ -36,8 +36,10 @@ class AwsService(awsConfig: AwsConfig) {
 
   val dataPrefix: String = awsConfig.dataPrefix
 
-  val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
-  val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
+//  val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
+//  val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
+
+  val credentials: AWSCredentials = new BasicAWSCredentials("AKIAJCX3JGO2FWG56RGQ", "UVQW116FC9zqg7ApCVvXdTXiXgad2RmtVQoTWVCZ")
 
   val regionName = awsConfig.regionName
 
