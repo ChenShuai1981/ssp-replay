@@ -8,23 +8,23 @@ import spray.json._
 
 
 case class EventRecord (
-   appId: String,
+   appId: String = "",
    bidFloor: BigDecimal,
-   bidId: String,
-   buyerGroupId: String,
-   buyerId: String,
+   bidId: String = "",
+   buyerGroupId: String = "",
+   buyerId: String = "",
    buyerType: Int,
    carrierId: Int,
    clearPrice: BigDecimal,
    connectionTypeId: Int,
    contentCategory: Seq[Int],
    dealType: Int,
-   deviceMake: String,
-   deviceModel: String,
+   deviceMake: String = "",
+   deviceModel: String = "",
    deviceOs: Seq[Int],
    deviceType: Int,
    dspSspTaxRateVersion: Int,
-   eventKey: String,
+   eventKey: String = "",
    eventTime: Long,
    eventType: Int,
    exchangeRateVersion: Int,
@@ -32,18 +32,19 @@ case class EventRecord (
    impressionType: Int,
    isCPMApplyDefault: Boolean,
    languageId: Int,
-   mediaSize: String,
+   mediaSize: String = "",
    mediaType: Int,
-   placementGroupId: String,
-   placementId: String,
-   publisherCountryCode: String,
-   publisherId: String,
+   placementGroupId: String = "",
+   placementId: String = "",
+   publisherCountryCode: String = "",
+   publisherId: String = "",
+   publisherRevenueShare: BigDecimal,
    publisherRevenueShareType: Int,
    publisherSspTaxRateVersion: Int,
    screenDensity: Int,
-   sellerId: String,
+   sellerId: String = "",
    sellerType: Int,
-   siteDomain: String,
+   siteDomain: String = "",
    siteProtocol: Int,
    supplyType: Int,
    userAge: Int,
@@ -86,6 +87,7 @@ case class EventRecord (
       .append(placementId).append(delim)
       .append(publisherCountryCode).append(delim)
       .append(publisherId).append(delim)
+      .append(publisherRevenueShare).append(delim)
       .append(publisherRevenueShareType).append(delim)
       .append(publisherSspTaxRateVersion).append(delim)
       .append(screenDensity).append(delim)
@@ -138,6 +140,7 @@ object EventRecordJsonProtocol extends DefaultJsonProtocol {
       params += "placementId" -> JsString(v.placementId)
       params += "publisherCountryCode" -> JsString(v.publisherCountryCode)
       params += "publisherId" -> JsString(v.publisherId)
+      params += "publisherRevenueShare" -> JsNumber(v.publisherRevenueShare)
       params += "publisherRevenueShareType" -> JsNumber(v.publisherRevenueShareType)
       params += "publisherSspTaxRateVersion" -> JsNumber(v.publisherSspTaxRateVersion)
       params += "screenDensity" -> JsNumber(v.screenDensity)
@@ -197,6 +200,7 @@ object EventRecordJsonProtocol extends DefaultJsonProtocol {
       val placementId = fields.checkExist("placementId").strValue
       val publisherCountryCode = fields.checkExist("publisherCountryCode").strValue
       val publisherId = fields.checkExist("publisherId").strValue
+      val publisherRevenueShare = fields.checkExist("publisherRevenueShare").intValue
       val publisherRevenueShareType = fields.checkExist("publisherRevenueShareType").intValue
       val publisherSspTaxRateVersion = fields.checkExist("publisherSspTaxRateVersion").intValue
       val screenDensity = fields.checkExist("screenDensity").intValue
@@ -239,6 +243,7 @@ object EventRecordJsonProtocol extends DefaultJsonProtocol {
         placementId = placementId,
         publisherCountryCode = publisherCountryCode,
         publisherId = publisherId,
+        publisherRevenueShare = publisherRevenueShare,
         publisherRevenueShareType = publisherRevenueShareType,
         publisherSspTaxRateVersion = publisherSspTaxRateVersion,
         screenDensity = screenDensity,

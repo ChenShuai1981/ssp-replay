@@ -409,6 +409,7 @@ class Flattener private (flattenConfig: FlattenConfig,
       publisherObject <- getPublisherObject(publisherId, platformId)
       publisherCountryCode = publisherObject.country_id
       isCPMApplyDefault = publisherObject.is_cpm_apply_default
+      publisherRevenueShare = publisherObject.publisher_revenue_share
       publisherRevenueShareType = publisherObject.publisher_revenue_share_type
       bidFloor <- getPriceInUSD(bidFloorValue, bidFloorCur, exchangeRateVersion)
     } yield {
@@ -443,6 +444,7 @@ class Flattener private (flattenConfig: FlattenConfig,
         placementId = placementId,
         publisherCountryCode = publisherCountryCode,
         publisherId = publisherId,
+        publisherRevenueShare = publisherRevenueShare,
         publisherRevenueShareType = publisherRevenueShareType,
         publisherSspTaxRateVersion = publisherSspTaxRateVersion,
         screenDensity = vponDensityId,

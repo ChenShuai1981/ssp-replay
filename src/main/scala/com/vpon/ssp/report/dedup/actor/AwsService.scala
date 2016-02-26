@@ -24,6 +24,7 @@ import com.vpon.ssp.report.dedup.util.S3Util
 case class AwsConfig (
    regionName: String,
    s3BucketName: String,
+   dataPrefix: String,
    needCompress: Boolean,
    needEncrypt: Boolean,
    kinesisStreamName: String
@@ -33,7 +34,7 @@ class AwsService(awsConfig: AwsConfig) {
 
   val logger = LoggerFactory.getLogger("AwsService")
 
-  val DATA_PREFIX: String = "data/"
+  val dataPrefix: String = awsConfig.dataPrefix
 
   val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
   val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
@@ -60,7 +61,7 @@ class AwsService(awsConfig: AwsConfig) {
 
   def send(allRecords: List[EventRecord], partitionId: Option[Int] = None): Future[Int] = {
 
-    val counts: Iterable[Future[Int]] = allRecords.groupBy(r => S3Util.getS3Folder(r, DATA_PREFIX)).map(kv => {
+    val counts: Iterable[Future[Int]] = allRecords.groupBy(r => S3Util.getS3Folder(r, dataPrefix)).map(kv => {
       val s3Folder = kv._1
       val groupedRecords = kv._2.sortBy(_.eventTime)
       // Write all of the records to a compressed output stream

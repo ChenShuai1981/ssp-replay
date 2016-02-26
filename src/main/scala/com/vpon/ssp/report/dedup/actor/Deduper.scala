@@ -60,6 +60,7 @@ class Deduper(private val system: ActorSystem,
     new AwsConfig(
       regionName = "ap-northeast-1",
       s3BucketName = "ssp-indexing-1",
+      dataPrefix = "data/",
       needCompress = false,
       needEncrypt = false,
       kinesisStreamName = "S3FileStream"
