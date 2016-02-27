@@ -36,10 +36,8 @@ class AwsService(awsConfig: AwsConfig) {
 
   val dataPrefix: String = awsConfig.dataPrefix
 
-//  val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
-//  val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
-
-  val credentials: AWSCredentials = new BasicAWSCredentials("AKIAJCX3JGO2FWG56RGQ", "UVQW116FC9zqg7ApCVvXdTXiXgad2RmtVQoTWVCZ")
+  val awsCredentialsProvider: AWSCredentialsProvider = new DefaultAWSCredentialsProviderChain()
+  val credentials: AWSCredentials = awsCredentialsProvider.getCredentials
 
   val regionName = awsConfig.regionName
 
