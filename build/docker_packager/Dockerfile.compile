@@ -1,5 +1,0 @@
-FROM 192.168.101.29:5000/vpon/alpine-sbt-packager
-
-# Add package to image
-ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
-ADD ./tmp/project_source_code.tar.gz /opt/

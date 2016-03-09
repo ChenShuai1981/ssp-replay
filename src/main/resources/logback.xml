@@ -7,17 +7,17 @@
         </encoder>
     </appender>
     <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOGFILE:-{{ INSIDE_LOG_DIR }}/ssp-replay.log }</file>
+        <file>${LOGFILE:-/Users/chenshuai/logs/ssp-replay.log }</file>
         <!-- <file>${LOGFILE:-/opt/apps/logs/ssp-dedup.log}</file> -->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>{{ INSIDE_LOG_DIR }}/ssp-replay.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
+            <fileNamePattern>/Users/chenshuai/logs/ssp-replay.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
             <maxHistory>170</maxHistory>
         </rollingPolicy>
         <encoder>
             <pattern>%date{MM/dd HH:mm:ss:SSS} %-5level[%thread] %logger{1} - %msg%n</pattern>
         </encoder>
     </appender>
-    <root level="{{ LOG_LEVEL }}">
+    <root level="DEBUG">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ROLLING_FILE"/>
     </root>
