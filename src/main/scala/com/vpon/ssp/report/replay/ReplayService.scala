@@ -167,7 +167,14 @@ object ReplayService extends ReplayConfig {
     logger.debug(s"read s3 object $s3ObjectKey")
     val s3Obj = s3.getObject(new GetObjectRequest(archiveS3BucketName, s3ObjectKey))
     val s3Content: Array[Byte] = Stream.continually(s3Obj.getObjectContent.read).takeWhile(_ != -1).map(_.toByte).toArray
-    val batchArrayBytes: Array[(String, Array[Byte])] = SerializationUtils.deserialize(s3Content).asInstanceOf[Array[(String, Array[Byte])]]
+    val fileSuffix = s3ObjectKey.substring(s3ObjectKey.lastIndexOf(seperator) + 1)
+    val decompressedS3Content = fileSuffix match {
+      case "gz" => GZIPDecompressor.decompressData(s3Content)
+      case "bz2" => BZIP2Decompressor.decompressData(s3Content)
+      case "lzo" => LZOPDecompressor.decompressData(s3Content)
+      case _ => s3Content // uncompress
+    }
+    val batchArrayBytes: Array[(String, Array[Byte])] = SerializationUtils.deserialize(decompressedS3Content).asInstanceOf[Array[(String, Array[Byte])]]
     batchArrayBytes.map(pair => {
       logger.debug(s"send to $kafkaReplayTopic with partition $partitionId and key ${pair._1}")
       new ProducerRecord(kafkaReplayTopic, partitionId, pair._1, pair._2)

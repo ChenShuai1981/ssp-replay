@@ -15,7 +15,10 @@ libraryDependencies ++= {
     "com.couchbase.client"  %  "java-client"               % "2.2.1",
     "commons-lang"          %  "commons-lang"              % "2.6",
     "org.apache.kafka"      %% "kafka"                     % "0.8.2.1",
-    "com.github.scopt"      %% "scopt"                     % "3.3.0"
+    "org.anarres.lzo"       %  "lzo-hadoop"                % "1.0.5",
+    "org.anarres.lzo"       %  "lzo-core"                  % "1.0.5",
+    "org.anarres.lzo"       %  "lzo-commons"               % "1.0.5",
+    "org.apache.commons"    %  "commons-compress"          % "1.10"
   )
 }
 
